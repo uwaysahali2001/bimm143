@@ -1,0 +1,215 @@
+---
+title: "class 13"
+author: "Uwaysah"
+format: html
+editor: visual
+---
+
+```{r}
+library(DESeq2)
+```
+
+```{r}
+countz <- read.csv("airway_scaledcounts.csv", row.names=1)
+metadata <- read.csv("airway_metadata.csv")
+```
+
+```{r}
+head(countz)
+```
+
+
+> Q1. How many genes are in this dataset?
+
+
+```{r}
+nrow(countz)
+```
+
+
+> Q2. How many ‘control’ cell lines do we have?
+
+
+```{r}
+sum(metadata$dex == "control")
+```
+
+```{r}
+control.inds <- head(metadata$dex) == "control"
+metadata[control.inds, ]
+```
+
+```{r}
+control.counts <- countz[,control.inds]
+head(control.counts)
+```
+
+```{r}
+control.mean <- rowMeans(control.counts)
+head(control.mean)
+```
+
+
+> Q3. How would you make the above code in either approach more robust? Is there a function that could help here?
+
+
+```{r}
+cont.inds <- rowMeans(countz[,metadata$dex == "control"])
+head(cont.inds)
+```
+
+
+> Q4. Follow the same procedure for the treated samples (i.e. calculate the mean per gene across drug treated samples and assign to a labeled vector called treated.mean)
+
+
+```{r}
+treated.inds <- metadata$dex == "treated"
+metadata[treated.inds, ]
+```
+
+```{r}
+treated.counts <- countz[,treated.inds]
+treated.mean <- rowMeans(treated.counts)
+head(treated.mean)
+```
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+head(meancounts)
+```
+
+```{r}
+colSums(meancounts)
+```
+
+
+> Q5 (a). Create a scatter plot showing the mean of the treated samples against the mean of the control samples. Your plot should look something like the following.
+
+
+```{r}
+plot(meancounts[,1],meancounts[,2], xlab="Control", ylab="Treated")
+```
+
+
+> Q5 (b).You could also use the ggplot2 package to make this figure producing the plot below. What geom\_?() function would you use for this plot?
+
+
+```{r}
+library(ggplot2)
+ggplot(meancounts) + aes(control.mean, treated.mean) + geom_point(alpha=0.2)
+```
+
+
+> Q6. Try plotting both axes on a log scale. What is the argument to plot() that allows you to do this?
+
+
+```{r}
+plot(meancounts, log="xy")
+```
+
+```{r}
+meancounts$log2fc <- log2(meancounts$treated.mean/meancounts$control.mean)
+head(meancounts)
+```
+
+```{r}
+to.rm.inds <- rowSums(meancounts[,1:2] == 0) > 0
+mycounts <- meancounts[!to.rm.inds,]
+```
+
+```{r}
+x <- c(T, F, T)
+!x
+```
+
+```{r}
+dim(mycounts)
+```
+
+```{r}
+head(mycounts)
+```
+
+
+> Q7. What is the purpose of the arr.ind argument in the which() function call above? Why would we then take the first column of the output and need to call the unique() function?
+
+> The arr.ind=TRUE function gives us the row and column for that value. The unique() function removes the rows that have the same number of samples.
+
+> Q8. Using the up.ind vector above can you determine how many up regulated genes we have at the greater than 2 fc level?
+
+
+```{r}
+up.ind <- mycounts$log2fc > 2 
+down.ind <- mycounts$log2fc < (-2)
+
+sum(up.ind)
+```
+
+
+> Q9. Using the down.ind vector above can you determine how many down regulated genes we have at the greater than 2 fc level?
+
+
+```{r}
+sum(down.ind)
+```
+
+
+> Q10. Do you trust these results? Why or why not?
+
+> The statistical significance is not known so they cannot be trusted as much.
+
+
+```{r}
+library(DESeq2)
+```
+
+```{r}
+citation("DESeq2")
+```
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=countz, 
+                              colData=metadata, 
+                              design=~dex)
+dds
+```
+
+```{r}
+dds <- DESeq(dds)
+```
+
+```{r}
+res <- results(dds)
+head(res)
+```
+
+```{r}
+plot(res$log2FoldChange, -log(res$padj))
+abline(v=2, col="red")
+abline(v=-2, col="red")
+abline(h=-log(0.05), col="blue")
+```
+
+```{r}
+write.csv(res,file="deseq_results.csv")
+```
+
+```{r}
+library("AnnotationDbi")
+```
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("org.Hs.eg.db")
+```
+
+```{r}
+install.packages("org.Hs.eg.db")
+```
+
+```{r}
+install.packages("pathview")
+```
+

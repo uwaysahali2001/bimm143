@@ -1,0 +1,128 @@
+---
+title: "Class12"
+author: "Uwaysah"
+format: html
+editor: visual
+---
+```{r}
+countData <- read.csv("airway_scaledcounts.csv", row.names=1)
+head(countData)
+```
+```{r}
+metaData <- read.csv("airway_metadata.csv")
+metaData
+```
+> Q1: How many genes are in this dataset?
+
+```{r}
+nrow(countData)
+```
+
+> Q2: How many control cell lines do we have?
+
+```{r}
+table(metaData$dex)
+```
+```{r}
+sum(metaData$dex == "control")
+```
+- Step 1: 
+Calculate the mean of the control samples (i.e. columns in countData)
+
+(a) We need to find which columns in countData are "control"
+- look in metaData (aka colData), specifically in the $dex column
+
+(b) Extract all the control columns from the countData and call it "control.counts"
+
+```{r}
+control.inds <- metaData$dex == "control"
+control.counts <- countData[ , control.inds]
+```
+
+(c) Calculate the mean value across the rows of "control.counts" i.e. calculate the mean count values for each gene in the control samples. 
+```{r}
+control.mean <- rowMeans(control.counts)
+head(control.mean)
+```
+- Step 2:
+Calculate the mean of the treated samples 
+
+```{r}
+treated.inds <- metaData$dex == "treated"
+treated.counts <- countData[ , treated.inds]
+treated.mean <- rowMeans(treated.counts)
+head(treated.mean)
+```
+We now have control and treated mean count values. For ease of book-keeping I will combine these vectors into a new data frame called "meancounts" 
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+head(meancounts)
+```
+```{r}
+plot(meancounts)
+```
+#if there is ever a big skew, we have to transform
+
+```{r}
+plot(meancounts, log="xy")
+```
+We use logarithms for skewed data such as this and because we really care about relative changes in magnitude.  
+
+We must often use log2 as our transform as the math is easier to interpret than log10 or ln. 
+
+If we have no change - i.e. same values in control and treated - we will have a log2 value of zero. 
+
+If I have double the amount of the original, I will have a log2 fold change of +1
+
+If I have half the amount of the original, I will have a log2 fold change of -1
+
+```{r}
+meancounts$log2fc <- log2(meancounts$treated.mean / meancounts$control.mean)
+head(meancounts)
+```
+> Q. How many genes are upregulated at the common threshold of +2 log2FC values?
+
+```{r}
+sum(meancounts$log2fc >= 2, na.rm=TRUE)
+```
+We will turn to the DESeq2 package to determine if our results are statistically significant.
+
+## DESeq2 analysis
+
+```{r}
+#/ message: false
+library(DESeq2)
+```
+
+To use DESeq we need our input countData and colData in a specific format that DESeq wants: 
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = countData, colData = metaData, design= ~dex)
+```
+To run the analysis, I can now use the main DESeq function called "DESeq()" with "dds" as input
+
+```{r}
+dds <- DESeq(dds)
+```
+To get the results back from this object, we can use the "results()" function from the package. 
+
+```{r}
+res <- results(dds)
+head(res)
+```
+Let's make a final plot of log2 fold-change vs the adjusted p-value.
+
+```{r}
+plot(res$log2FoldChange, res$padj)
+```
+It is the low p-values that we care about and these are lost in the skewed plot above.
+```{r}
+mycols <- rep("gray", nrow(res))
+mycols[abs(res$log2FoldChange) >= 2] <- "red"
+plot(res$log2FoldChange, -log(res$padj))
+abline(v=c(+2,-2), col="blue")
+abline(h=-log(0.05), col="blue")
+```
+
+
+
